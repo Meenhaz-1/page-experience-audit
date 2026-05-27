@@ -2,3 +2,5 @@ node_modules
 dist
 audits
 .env
+
+.DS_Store
