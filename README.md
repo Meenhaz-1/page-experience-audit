@@ -26,6 +26,21 @@ This project combines those signals into a single persisted artifact so you can 
 - `chrome-devtools-mcp` orchestration for trace, insight, heap, console, evaluation, and Lighthouse collection
 - Canonical JSON audit artifacts with optional AI-generated summaries/reports
 - Filesystem-backed artifact persistence and retrieval
+- Stakeholder-friendly quick-check HTML reports with layered reading depth:
+  - `30 seconds`: decision layer, top risks, ownership, priority
+  - `2 minutes`: user journey, key metrics, root causes, actions
+  - `10+ minutes`: logs, traces, evidence, engineering appendix
+- Decision-ready report framing with:
+  - critical alert banners
+  - `P0` to `P3` issue prioritization
+  - severity, timing, confidence, ownership, and blast-radius tagging
+- User-journey interpretation across:
+  - `Page Opens Reliably`
+  - `Content Stays Stable`
+  - `Scrolling Feels Smooth`
+  - `Page Feels Responsive`
+  - `Session Stays Stable`
+- Third-party CPU attribution from saved Chrome traces, including per-vendor main-thread time
 
 ## Supported Tests
 
@@ -97,12 +112,20 @@ Run with `npm run quick-check -- <url>`.
 This produces a stakeholder-friendly fail-soft HTML summary report focused on:
 
 - plain-English executive status
+- critical-alert escalation for severe failures like catastrophic CLS or page-open breakage
+- a decision layer with ranked issues, owner, priority, timing, and confidence
+- a compact user-journey scorecard for the five major experience stages
 - phase-by-phase collection results
 - console and network health
 - trace-backed performance signals
 - DOM, iframe, and image counts
+- memory and DOM growth during scroll
 - short-window rerender churn via DOM mutation tracking
+- lazy-loading misses for below-the-fold images and iframes
+- ad and third-party UX pressure
+- per-vendor third-party main-thread time from the saved performance trace
 - practical next actions and limitations
+- AI-generated engineering action plans when `--ai-mode structured_summary` is enabled
 
 ### 7. Optional AI Synthesis
 
@@ -191,6 +214,15 @@ Quick check with AI summary:
 npm run quick-check -- https://example.com --ai-mode structured_summary
 ```
 
+Quick check with a manually attached Chrome instance:
+
+```bash
+npm run quick-check -- https://example.com \
+  --browser-url http://127.0.0.1:9222 \
+  --ai-mode structured_summary \
+  --flow-description "Open the page, wait for content, then perform a short representative scroll."
+```
+
 API:
 
 ```bash
@@ -228,6 +260,12 @@ The audit engine supports three AI modes:
 
 The AI result is stored in the audit artifact under `aiOutput`.
 
+When `structured_summary` is used with `quick-check`, the final HTML report can also render:
+
+- executive-facing narrative summaries
+- decision-mapped recommendations
+- `scriptActionPlan` as an engineering appendix
+
 Example API request with AI synthesis:
 
 ```bash
@@ -255,12 +293,73 @@ Example MCP tool input:
 - The default MCP command includes `--experimentalPageIdRouting=true` so page-scoped tools can be routed more reliably.
 - The default MCP command includes `--experimentalMemory=true` and `--experimentalStructuredContent=true` so the heap snapshot and structured trace tools are exposed when supported.
 - Each run now writes into `audits/runs/<auditId>/...`, including `artifact.json`, `trace.json`, `heap.heapsnapshot`, and `reports/` when those outputs are available.
+- Quick-check runs persist into `audits/runs/<quickCheckId>/...` with:
+  - `artifact.json`
+  - `reports/summary.html`
 - Every audit writes a local log file to `audits/runs/<auditId>/audit.log` unless you override it with `PAGE_AUDIT_MCP_LOG_FILE` or `--log-file`.
 - Use `--light-mode` when you want a lower-pressure diagnostic run. It switches the defaults to a desktop profile and `--cpu-throttle 1` so you can confirm tooling health before trying mobile-throttled runs.
 - Use `--phased` when you want the CLI to automatically run the audit in stages: lightweight coverage first, then memory, then Lighthouse only if the earlier phase was healthy enough.
 - Use `--launch-managed-browser` when you want the audit to ignore any configured `browserUrl` and let `chrome-devtools-mcp` launch Chrome directly. This is the recommended mode when you need page-scoped tools like `evaluate_script` and scroll profiling to work reliably.
 - When you use `--browser-url`, the CLI now preflights `http://.../json/version` before phased and compare runs. If Chrome is not reachable, the command fails early instead of producing a misleading partial comparison.
 - Use `npm run usability -- ...` when you want a separate usability-oriented report that focuses on load experience, scroll experience, interaction readiness, visual stability, reliability, memory pressure, and accessibility using only DevTools-backed signals.
+
+## Quick Check Report Structure
+
+The quick-check HTML report is intentionally layered so different audiences can consume it at different speeds.
+
+### Layer 1: 30 Seconds
+
+- executive summary
+- critical alert banners
+- decision layer with:
+  - `P0` to `P3` priority
+  - severity
+  - timing
+  - ownership
+  - confidence
+
+### Layer 2: 2 Minutes
+
+- user journey perspective
+- key metrics
+- third-party CPU impact
+- memory and DOM analysis
+- decision-mapped recommendations
+
+### Layer 3: 10+ Minutes
+
+- console evidence
+- network evidence
+- trace summary
+- engineering appendix
+- MCP prompt and audit notes
+
+## Third-Party CPU Attribution
+
+Quick check now includes a `Third-Party CPU Impact` section when a saved performance trace is available.
+
+This is a conservative first-pass model based on directly attributed renderer main-thread events such as:
+
+- `FunctionCall`
+- `EvaluateScript`
+- `TimerFire`
+- `EventDispatch`
+
+For each vendor, the report can show:
+
+- total main-thread time
+- script execution time
+- long-task time
+- long-task count
+- max task duration
+- confidence
+- likely UX effect
+
+This is directional attribution, not perfect causal proof. It is designed to answer:
+
+- which vendors are consuming the most CPU
+- which vendors are creating long tasks
+- which vendors are the clearest candidates for defer/remove/profile work
 
 ## Manual Chrome Attach
 
