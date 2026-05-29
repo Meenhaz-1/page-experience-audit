@@ -79,7 +79,7 @@ Quick-check reports are layered for different audiences:
 
 Sample report:
 
-[sample-reports/Quick Check Report/amazon-in/summary.html](<sample-reports/Quick Check Report/amazon-in/summary.html>)
+[View rendered sample quick-check report](https://meenhaz-1.github.io/page-experience-audit/sample-reports/quick-check/amazon-in/summary.html)
 
 ## AI Modes
 
