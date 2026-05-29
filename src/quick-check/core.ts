@@ -1642,6 +1642,50 @@ export function renderQuickCheckHtml(artifact: QuickCheckArtifact): string {
       background: linear-gradient(180deg, #fff, var(--soft));
     }
     .metric .value { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+    .scan-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .signal-card {
+      border: 1px solid var(--line);
+      border-left-width: 5px;
+      border-radius: 14px;
+      padding: 14px;
+      background: #fff;
+    }
+    .signal-card.critical { border-left-color: var(--blocked); background: linear-gradient(180deg, #fff, var(--blocked-bg)); }
+    .signal-card.watch { border-left-color: var(--watch); background: linear-gradient(180deg, #fff, var(--watch-bg)); }
+    .signal-card.healthy { border-left-color: var(--healthy); background: linear-gradient(180deg, #fff, var(--healthy-bg)); }
+    .signal-card.info { border-left-color: var(--line-strong); background: linear-gradient(180deg, #fff, var(--soft)); }
+    .signal-card .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .signal-card .value {
+      font-size: 1.45rem;
+      font-weight: 850;
+      line-height: 1.15;
+      margin: 6px 0;
+    }
+    .signal-card .summary { background: transparent; border-left: 0; box-shadow: none; padding: 0; margin: 0; color: var(--muted); font-size: 13px; }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .detail-panel {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: #fff;
+    }
+    .detail-panel h3 { margin-bottom: 8px; }
     pre {
       background: #fbfaf8;
       border: 1px solid var(--line);
@@ -1887,17 +1931,11 @@ export function renderQuickCheckHtml(artifact: QuickCheckArtifact): string {
   <section class="card">
     <h2>8. Memory and DOM Analysis</h2>
     <p class="section-summary">${escapeHtml(sectionSummaries.runtimeAnalysis)}</p>
+    ${renderRuntimeAnalysisAtGlance(artifact)}
     ${renderAccordion(
       "Expand Memory and DOM Analysis",
-      `<div class="table-wrap"><table>
-        <tr><th>DOM footprint</th><td>${escapeHtml(artifact.runtimeAnalysis.domSummary)}</td></tr>
-        <tr><th>Memory profile</th><td>${escapeHtml(artifact.runtimeAnalysis.memorySummary)}</td></tr>
-        <tr><th>Scroll growth</th><td>${escapeHtml(artifact.runtimeAnalysis.scrollGrowthSummary)}</td></tr>
-        <tr><th>Lazy-loading opportunities</th><td>${escapeHtml(artifact.runtimeAnalysis.lazyLoadingSummary)}</td></tr>
-        <tr><th>Ad impact on UX</th><td>${escapeHtml(artifact.runtimeAnalysis.adImpactSummary)}</td></tr>
-        <tr><th>Ad metrics</th><td>${escapeHtml(buildAdMetricsSummary(artifact))}</td></tr>
-      </table></div>`,
-      true
+      renderRuntimeAnalysisDetails(artifact),
+      false
     )}
   </section>
 
@@ -2178,6 +2216,192 @@ function buildAdMetricsSummary(artifact: QuickCheckArtifact): string {
   return parts.join(" ");
 }
 
+function buildRuntimeScanSummary(artifact: QuickCheckArtifact): string {
+  const metrics = artifact.keyMetrics;
+  const profile = artifact.rawAudit.scrollProfile;
+  const headlineSignals: string[] = [];
+
+  if (metrics.forcedReflowInsightPresent) {
+    headlineSignals.push("forced reflow");
+  }
+  if ((metrics.domNodeGrowth ?? 0) >= 150) {
+    headlineSignals.push(`DOM growth of ${formatMaybeNumber(metrics.domNodeGrowth)} nodes`);
+  }
+  if ((profile?.cumulativeLayoutShift ?? 0) >= 0.1) {
+    headlineSignals.push(`scroll CLS ${formatMaybeFloat(profile?.cumulativeLayoutShift)}`);
+  }
+  if ((metrics.peakScrollHeapBytes ?? 0) >= 100_000_000) {
+    headlineSignals.push(`${formatBytes(metrics.peakScrollHeapBytes)} peak heap`);
+  }
+  if ((artifact.thirdPartyCpuImpact.totalAttributedMainThreadTimeMs ?? 0) >= 250) {
+    headlineSignals.push(`${formatMaybeNumber(artifact.thirdPartyCpuImpact.totalAttributedMainThreadTimeMs)} ms attributed third-party CPU`);
+  }
+
+  if (headlineSignals.length === 0) {
+    return "Memory and DOM signals did not surface a dominant post-load risk in this run.";
+  }
+
+  return `Post-load experience is the main readout here: ${headlineSignals.slice(0, 4).join(", ")}.`;
+}
+
+function renderRuntimeAnalysisAtGlance(artifact: QuickCheckArtifact): string {
+  const metrics = artifact.keyMetrics;
+  const profile = artifact.rawAudit.scrollProfile;
+  const topCpuVendor = artifact.thirdPartyCpuImpact.vendors[0] ?? null;
+
+  return `<div class="scan-grid">
+    ${renderSignalCard(
+      "Post-load layout",
+      metrics.forcedReflowInsightPresent ? "Forced reflow" : "No forced reflow",
+      metrics.forcedReflowInsightPresent ? "critical" : "healthy",
+      metrics.forcedReflowInsightPresent
+        ? "Layout work is being triggered after scripts touch the page."
+        : "The trace did not flag forced reflow as a headline issue."
+    )}
+    ${renderSignalCard(
+      "DOM growth",
+      formatMaybeNumber(metrics.domNodeGrowth),
+      classifyDomGrowth(metrics.domNodeGrowth),
+      `Max observed DOM: ${formatMaybeNumber(metrics.maxDomNodesObserved)} nodes.`
+    )}
+    ${renderSignalCard(
+      "Scroll stability",
+      formatMaybeFloat(profile?.cumulativeLayoutShift),
+      classifyCls(profile?.cumulativeLayoutShift ?? null),
+      "Higher CLS means content moved while the user was scrolling."
+    )}
+    ${renderSignalCard(
+      "Peak JS heap",
+      formatBytes(metrics.peakScrollHeapBytes),
+      classifyHeapPressure(metrics.peakScrollHeapBytes),
+      "A useful signal for memory pressure on mobile-class devices."
+    )}
+    ${renderSignalCard(
+      "3P CPU leader",
+      topCpuVendor ? topCpuVendor.vendor : "n/a",
+      classifyThirdPartyCpu(topCpuVendor?.totalMainThreadTimeMs ?? null),
+      topCpuVendor
+        ? `${formatMaybeNumber(topCpuVendor.totalMainThreadTimeMs)} ms directly attributed main-thread time.`
+        : "Trace attribution was not available for a top vendor."
+    )}
+    ${renderSignalCard(
+      "Render churn",
+      formatMaybeNumber(metrics.rerenderMutationCount),
+      classifyRenderChurn(metrics.rerenderMutationCount),
+      `Changed nodes: ${formatMaybeNumber(metrics.rerenderChangedNodeCount)}.`
+    )}
+  </div>`;
+}
+
+function renderRuntimeAnalysisDetails(artifact: QuickCheckArtifact): string {
+  return `<div class="detail-grid">
+    <div class="detail-panel">
+      <h3>Responsiveness</h3>
+      <p>${escapeHtml(buildRuntimeScanSummary(artifact))}</p>
+      <p class="small">Forced reflow: ${artifact.keyMetrics.forcedReflowInsightPresent ? "yes" : "no"}. Third-party insight: ${artifact.keyMetrics.thirdPartyInsightPresent ? "yes" : "no"}.</p>
+    </div>
+    <div class="detail-panel">
+      <h3>DOM Footprint</h3>
+      <p>${escapeHtml(artifact.runtimeAnalysis.domSummary)}</p>
+    </div>
+    <div class="detail-panel">
+      <h3>Memory Pressure</h3>
+      <p>${escapeHtml(artifact.runtimeAnalysis.memorySummary)}</p>
+    </div>
+    <div class="detail-panel">
+      <h3>Scroll Growth</h3>
+      <p>${escapeHtml(artifact.runtimeAnalysis.scrollGrowthSummary)}</p>
+    </div>
+    <div class="detail-panel">
+      <h3>Lazy Loading</h3>
+      <p>${escapeHtml(artifact.runtimeAnalysis.lazyLoadingSummary)}</p>
+    </div>
+    <div class="detail-panel">
+      <h3>Ads and Embeds</h3>
+      <p>${escapeHtml(artifact.runtimeAnalysis.adImpactSummary)}</p>
+      <p class="small">${escapeHtml(buildAdMetricsSummary(artifact))}</p>
+    </div>
+  </div>`;
+}
+
+function renderSignalCard(
+  label: string,
+  value: string,
+  level: "critical" | "watch" | "healthy" | "info",
+  summary: string
+): string {
+  return `<div class="signal-card ${level}">
+    <div class="label">${escapeHtml(label)}</div>
+    <div class="value">${escapeHtml(value)}</div>
+    <p class="summary">${escapeHtml(summary)}</p>
+  </div>`;
+}
+
+function classifyDomGrowth(value: number | null): "critical" | "watch" | "healthy" | "info" {
+  if (value === null) {
+    return "info";
+  }
+  if (value >= 500) {
+    return "critical";
+  }
+  if (value >= 150) {
+    return "watch";
+  }
+  return "healthy";
+}
+
+function classifyCls(value: number | null): "critical" | "watch" | "healthy" | "info" {
+  if (value === null) {
+    return "info";
+  }
+  if (value >= 0.25) {
+    return "critical";
+  }
+  if (value >= 0.1) {
+    return "watch";
+  }
+  return "healthy";
+}
+
+function classifyHeapPressure(value: number | null): "critical" | "watch" | "healthy" | "info" {
+  if (value === null) {
+    return "info";
+  }
+  if (value >= 180_000_000) {
+    return "critical";
+  }
+  if (value >= 100_000_000) {
+    return "watch";
+  }
+  return "healthy";
+}
+
+function classifyThirdPartyCpu(value: number | null): "critical" | "watch" | "healthy" | "info" {
+  if (value === null) {
+    return "info";
+  }
+  if (value >= 1_000) {
+    return "critical";
+  }
+  if (value >= 250) {
+    return "watch";
+  }
+  return "healthy";
+}
+
+function classifyRenderChurn(value: number | null): "critical" | "watch" | "healthy" | "info" {
+  if (value === null) {
+    return "info";
+  }
+  if (value >= 400) {
+    return "critical";
+  }
+  if (value >= 100) {
+    return "watch";
+  }
+  return "healthy";
+}
+
 function decisionRank(issue: QuickCheckDecisionIssue): number {
   const severityScore =
     issue.severity === "Critical" ? 400 : issue.severity === "High" ? 300 : issue.severity === "Medium" ? 200 : 100;
@@ -2203,9 +2427,7 @@ function buildSectionSummaries(artifact: QuickCheckArtifact): Record<string, str
     phaseResults: summarizePhaseResults(artifact),
     keyMetrics: summarizeKeyMetrics(artifact),
     thirdPartyCpuImpact: artifact.thirdPartyCpuImpact.summary,
-    runtimeAnalysis:
-      aiSummary?.investigationFindings ??
-      `${artifact.runtimeAnalysis.domSummary} ${artifact.runtimeAnalysis.memorySummary}`,
+    runtimeAnalysis: buildRuntimeScanSummary(artifact),
     evidence:
       artifact.rawAudit.aiOutput?.summary?.toolsUsed ??
       "The report includes captured console, network, trace, and runtime evidence gathered during the same run.",

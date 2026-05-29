@@ -110,17 +110,20 @@ export class AuditEngine {
       let pageId = initialPageId;
       let hasSelectedPageContext = initialSelectedPageContext;
 
-      const emulate = await requireSuccessfulTool(
-        mcpClient.callTool(
-          "emulate",
-          buildEmulationArgs(deviceProfile, normalizedRequest.cpuThrottleRate)
-        ),
-        warnings
-      );
-
       const pageScopedArgs = pageId !== null ? { pageId } : {};
       const canRunPageScopedTools = pageId !== null || hasSelectedPageContext;
       const managedMode = normalizedRequest.launchManagedBrowser;
+
+      const emulate = await requireSuccessfulTool(
+        mcpClient.callTool(
+          "emulate",
+          {
+            ...pageScopedArgs,
+            ...buildEmulationArgs(deviceProfile, normalizedRequest.cpuThrottleRate)
+          }
+        ),
+        warnings
+      );
 
       const pageSnapshot = await optionalTool(
         mcpClient,

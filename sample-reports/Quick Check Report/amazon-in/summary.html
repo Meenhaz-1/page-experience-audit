@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Page Performance Quick Check Report</title>
+  <style>
+    :root {
+      --bg: #f5f2ea;
+      --panel: #fffdfa;
+      --panel-strong: #fff8ed;
+      --text: #1d1b19;
+      --muted: #625d57;
+      --line: #ddd3c4;
+      --line-strong: #c8bba8;
+      --soft: #f7f2ea;
+      --header: #efe6d9;
+      --healthy: #166534;
+      --watch: #a16207;
+      --attention: #b45309;
+      --blocked: #991b1b;
+      --healthy-bg: #ecfdf3;
+      --watch-bg: #fff7e6;
+      --attention-bg: #fff4e5;
+      --blocked-bg: #fef2f2;
+      --shadow: 0 10px 30px rgba(36, 29, 20, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(247, 221, 183, 0.25), transparent 32%),
+        linear-gradient(180deg, #f8f4ee 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: "SF Pro Text", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.55;
+    }
+    main {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 32px 18px 56px;
+    }
+    h1, h2, h3 { margin: 0 0 10px; line-height: 1.15; }
+    h1 { font-size: 2.3rem; letter-spacing: -0.03em; }
+    h2 { font-size: 1.35rem; }
+    h3 { font-size: 1rem; }
+    p { margin: 0 0 12px; }
+    .small { color: var(--muted); font-size: 12px; }
+    .eyebrow { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 10px; }
+    .page-meta { color: var(--muted); font-size: 13px; margin: 12px 0 0; }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px 20px;
+      margin: 18px 0;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+    .summary {
+      background: linear-gradient(180deg, var(--panel-strong), var(--panel));
+      border-left: 6px solid var(--line-strong);
+    }
+    .status-healthy { color: var(--healthy); font-weight: 700; }
+    .status-watch { color: var(--watch); font-weight: 700; }
+    .status-needs-attention { color: var(--attention); font-weight: 700; }
+    .status-blocked { color: var(--blocked); font-weight: 700; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+    .badge-healthy { color: var(--healthy); background: var(--healthy-bg); border-color: #bbf7d0; }
+    .badge-watch { color: var(--watch); background: var(--watch-bg); border-color: #fcd34d; }
+    .badge-needs-attention { color: var(--attention); background: var(--attention-bg); border-color: #fdba74; }
+    .badge-blocked { color: var(--blocked); background: var(--blocked-bg); border-color: #fca5a5; }
+    .executive-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0 18px; }
+    .executive-chip {
+      background: rgba(255,255,255,0.72);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .executive-chip .label { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .executive-chip .value { font-size: 1rem; font-weight: 700; }
+    .table-wrap { overflow-x: auto; margin-top: 12px; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; margin: 12px 0; font-size: 14px; background: white; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    th, td { border-bottom: 1px solid var(--line); padding: 10px 12px; text-align: left; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    th { background: var(--header); }
+    tbody tr:nth-child(even) td { background: rgba(247, 242, 234, 0.55); }
+    .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: linear-gradient(180deg, #fff, var(--soft));
+    }
+    .metric .value { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+    .scan-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .signal-card {
+      border: 1px solid var(--line);
+      border-left-width: 5px;
+      border-radius: 14px;
+      padding: 14px;
+      background: #fff;
+    }
+    .signal-card.critical { border-left-color: var(--blocked); background: linear-gradient(180deg, #fff, var(--blocked-bg)); }
+    .signal-card.watch { border-left-color: var(--watch); background: linear-gradient(180deg, #fff, var(--watch-bg)); }
+    .signal-card.healthy { border-left-color: var(--healthy); background: linear-gradient(180deg, #fff, var(--healthy-bg)); }
+    .signal-card.info { border-left-color: var(--line-strong); background: linear-gradient(180deg, #fff, var(--soft)); }
+    .signal-card .label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .signal-card .value {
+      font-size: 1.45rem;
+      font-weight: 850;
+      line-height: 1.15;
+      margin: 6px 0;
+    }
+    .signal-card .summary { background: transparent; border-left: 0; box-shadow: none; padding: 0; margin: 0; color: var(--muted); font-size: 13px; }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .detail-panel {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: #fff;
+    }
+    .detail-panel h3 { margin-bottom: 8px; }
+    pre {
+      background: #fbfaf8;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    details { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; background: #fcfbf8; }
+    details[open] { background: #fffdf9; }
+    summary.accordion-summary {
+      cursor: pointer;
+      padding: 13px 15px;
+      font-weight: 700;
+      list-style: none;
+    }
+    summary.accordion-summary::-webkit-details-marker { display: none; }
+    .accordion-body { padding: 0 15px 15px; }
+    .section-summary { margin: 6px 0 12px; color: var(--muted); font-size: 15px; }
+    .lens-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 12px; }
+    .lens-card { border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: linear-gradient(180deg, #fff, var(--soft)); }
+    .lens-meta { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-bottom: 8px; }
+    .lens-score { font-size: 28px; font-weight: 700; }
+    .lens-drivers { margin: 8px 0 0; padding-left: 18px; }
+    .decision-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+    .decision-card { border: 1px solid var(--line); border-radius: 16px; padding: 14px; background: linear-gradient(180deg, #fff, #fffaf2); }
+    .decision-title { font-weight: 700; margin-bottom: 6px; }
+    .alert { border: 1px solid #fca5a5; background: linear-gradient(180deg, #fff1f1, #fef2f2); color: #991b1b; border-radius: 14px; padding: 14px; margin: 12px 0; font-weight: 700; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.35); }
+    .priority-p0, .priority-p1, .priority-p2, .priority-p3 {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 9px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 12px;
+      border: 1px solid transparent;
+    }
+    .priority-p0 { color: #991b1b; background: #fef2f2; border-color: #fca5a5; }
+    .priority-p1 { color: #b45309; background: #fff7e6; border-color: #fdba74; }
+    .priority-p2 { color: #1d4ed8; background: #eff6ff; border-color: #93c5fd; }
+    .priority-p3 { color: #475569; background: #f8fafc; border-color: #cbd5e1; }
+    .journey-summary-table td:first-child, .journey-summary-table th:first-child { white-space: nowrap; }
+    @media (max-width: 760px) {
+      main { padding: 22px 12px 44px; }
+      h1 { font-size: 1.8rem; }
+      .card { padding: 16px; }
+      .executive-grid, .metric-grid, .lens-grid, .decision-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+  <div class="eyebrow">Performance Diagnostic</div>
+  <h1>Page Performance Quick Check Report</h1>
+  <p class="page-meta">Generated: 2026-05-29T12:45:29.227Z | Environment: Chrome DevTools MCP with Chromium emulation (iphone_16_pro) | Viewport: iphone_16_pro | Browser: chrome-devtools-mcp</p>
+
+  <section class="card summary">
+    <h2>1. Executive Summary</h2>
+    
+    <div class="executive-grid">
+      <div class="executive-chip"><span class="label">Overall Status</span><span class="value"><span class="badge badge-watch">Watch</span></span></div>
+      <div class="executive-chip"><span class="label">Decision Summary</span><span class="value">P1</span></div>
+      <div class="executive-chip"><span class="label">Confidence</span><span class="value">High</span></div>
+      <div class="executive-chip"><span class="label">Primary Owner</span><span class="value">Frontend Platform</span></div>
+    </div>
+    <p>The page works, but it keeps adding content and doing expensive layout work as it loads, which can make scrolling and interactions feel heavier on phones. The clearest first fix is to reduce above-the-fold homepage content and stop layout-thrashing code in AmazonUI/NavMobileAssets from forcing repeated page reflows. There are also runtime problems in the ad/mash layer and Quirks Mode warnings that increase reliability and rendering risk.</p>
+    <div class="table-wrap"><table>
+      <tr><th>Top risk</th><td>Forced synchronous layout totaling 627 ms, with major hotspots in AmazonUI, AmazonUIjQuery, NavMobileAssets-all, CardJsRuntimeBuzzCopyBuild, and amazon.in inline scripts</td></tr>
+      <tr><th>Likely user impact</th><td>Mobile homepage completed navigation and rendered content, but continued mutating and expanding after load. The page showed a stable lab INP of 110 ms and trace CLS of 0.00 in the main trace window, yet scroll-period CLS reached 0.119247 as lazy content arrived. The page triggered long style recalculations, large forced reflows, ongoing ad/video/content fetches, and late-loading module warnings.</td></tr>
+      <tr><th>Recommended action</th><td>Reduce above-the-fold homepage module count on mobile. Prioritize core shopping/search/navigation modules first and defer secondary promo rails, icon grids, video player, and lower-priority merchandising cards until after first interaction or deeper scroll.</td></tr>
+      <tr><th>Confidence</th><td>High</td></tr>
+    </table></div>
+  </section>
+
+  <section class="card">
+    <h2>2. Decision Layer</h2>
+    <p class="section-summary">P1: Scroll and reading smoothness are being taxed by runtime churn. The most affected stage of the user journey is scrolling feels smooth. Leadership should treat this as this sprint work owned by frontend platform with strongly suspected evidence.</p>
+    <p>P1: Scroll and reading smoothness are being taxed by runtime churn. The most affected stage of the user journey is scrolling feels smooth. Leadership should treat this as this sprint work owned by frontend platform with strongly suspected evidence.</p>
+    <details open>
+    <summary class="accordion-summary">Expand Decision Layer</summary>
+    <div class="accordion-body"><div class="decision-grid">
+        <div class="decision-card">
+              <div class="decision-title">Scroll and reading smoothness are being taxed by runtime churn</div>
+              <p><span class="priority-p1">P1</span> | <strong>High</strong> | Responsiveness | This Sprint</p>
+              <p>Heavy scroll cost can reduce engagement, article completion, and recirculation on long-form templates by making the reading session feel heavy before users finish the page.</p>
+              <p class="small"><strong>Owner:</strong> Frontend Platform | <strong>Confidence:</strong> Strongly Suspected | <strong>Blast radius:</strong> Template-Level</p>
+              <p class="small"><strong>Next action:</strong> Reduce DOM churn, rerender-heavy components, and third-party main-thread work before tuning smaller cosmetic issues.</p>
+            </div><div class="decision-card">
+              <div class="decision-title">m.media-amazon.com is consuming meaningful main-thread time</div>
+              <p><span class="priority-p1">P1</span> | <strong>High</strong> | Ad/Third-Party Burden | This Sprint</p>
+              <p>A single vendor dominating main-thread time can slow article responsiveness and reduce content engagement before users finish the page.</p>
+              <p class="small"><strong>Owner:</strong> Vendor/Partner | <strong>Confidence:</strong> Confirmed | <strong>Blast radius:</strong> Template-Level</p>
+              <p class="small"><strong>Next action:</strong> Profile and defer m.media-amazon.com first. It was the largest directly attributed third-party main-thread cost in this trace and is the clearest CPU-specific optimization target in this run.</p>
+            </div><div class="decision-card">
+              <div class="decision-title">Content stability is likely being disrupted during reading</div>
+              <p><span class="priority-p2">P2</span> | <strong>Medium</strong> | Stability | This Sprint</p>
+              <p>Shifting content erodes article quality, reduces reading depth, and can hurt perceived premium experience and ad trust.</p>
+              <p class="small"><strong>Owner:</strong> Frontend Platform | <strong>Confidence:</strong> Confirmed | <strong>Blast radius:</strong> Single URL</p>
+              <p class="small"><strong>Next action:</strong> Reduce layout instability first by reserving slot space, deferring below-the-fold embeds, and removing forced-reflow paths that move content after it appears.</p>
+            </div><div class="decision-card">
+              <div class="decision-title">Ads and third-party embeds are a meaningful UX cost center</div>
+              <p><span class="priority-p2">P2</span> | <strong>Medium</strong> | Ad/Third-Party Burden | This Sprint</p>
+              <p>Ad and vendor overhead can lower article completion while also destabilizing viewability and monetization quality on high-scroll templates.</p>
+              <p class="small"><strong>Owner:</strong> Ads/Monetization | <strong>Confidence:</strong> Strongly Suspected | <strong>Blast radius:</strong> Template-Level</p>
+              <p class="small"><strong>Next action:</strong> Audit slot timing, refresh behavior, below-the-fold embed loading, and vendor bloat as a monetization-experience tradeoff, not just a page bug.</p>
+            </div>
+      </div>
+      <div class="table-wrap"><table>
+        <tr><th>Issue</th><th>Priority</th><th>Severity</th><th>Type</th><th>Timing</th><th>Business Impact</th><th>User Impact</th><th>Blast Radius</th><th>Confidence</th><th>Effort</th><th>Ownership</th><th>Strategic Leverage</th></tr>
+        <tr><td>Scroll and reading smoothness are being taxed by runtime churn</td><td><span class="priority-p1">P1</span></td><td>High</td><td>Responsiveness</td><td>This Sprint</td><td>Heavy scroll cost can reduce engagement, article completion, and recirculation on long-form templates by making the reading session feel heavy before users finish the page.</td><td>Readers may experience sticky scrolling, jittery modules, or heavier interaction as content continues to load.</td><td>Template-Level</td><td>Strongly Suspected</td><td>Medium</td><td>Frontend Platform</td><td>Template Gain</td></tr><tr><td>m.media-amazon.com is consuming meaningful main-thread time</td><td><span class="priority-p1">P1</span></td><td>High</td><td>Ad/Third-Party Burden</td><td>This Sprint</td><td>A single vendor dominating main-thread time can slow article responsiveness and reduce content engagement before users finish the page.</td><td>This vendor consumed 5932.125 ms of directly attributed renderer main-thread time and may be contributing to sticky scrolling or delayed module response.</td><td>Template-Level</td><td>Confirmed</td><td>Medium</td><td>Vendor/Partner</td><td>Template Gain</td></tr><tr><td>Content stability is likely being disrupted during reading</td><td><span class="priority-p2">P2</span></td><td>Medium</td><td>Stability</td><td>This Sprint</td><td>Shifting content erodes article quality, reduces reading depth, and can hurt perceived premium experience and ad trust.</td><td>Readers may lose their place, see content jump, or feel that modules and embeds are loading unpredictably.</td><td>Single URL</td><td>Confirmed</td><td>Medium</td><td>Frontend Platform</td><td>Template Gain</td></tr><tr><td>Ads and third-party embeds are a meaningful UX cost center</td><td><span class="priority-p2">P2</span></td><td>Medium</td><td>Ad/Third-Party Burden</td><td>This Sprint</td><td>Ad and vendor overhead can lower article completion while also destabilizing viewability and monetization quality on high-scroll templates.</td><td>Users may see delayed slots, unstable embeds, extra movement, or heavier loading caused by ad-tech and partner code.</td><td>Template-Level</td><td>Strongly Suspected</td><td>Medium</td><td>Ads/Monetization</td><td>Template Gain</td></tr>
+      </table></div></div>
+  </details>
+  </section>
+
+  <section class="card">
+    <h2>3. User Journey Perspective</h2>
+    <p class="section-summary">Scrolling Feels Smooth is the most affected stage of the journey in this run. The strongest evidence was 6 inferred long tasks. Fix scroll-time DOM churn and third-party main-thread cost first, then rerun the same quick check to confirm the experience improves.</p>
+    <p>Scrolling Feels Smooth is the most affected stage of the journey in this run. The strongest evidence was 6 inferred long tasks. Fix scroll-time DOM churn and third-party main-thread cost first, then rerun the same quick check to confirm the experience improves.</p>
+    <div class="table-wrap"><table class="journey-summary-table">
+      <tr><th>Journey Stage</th><th>Score</th><th>Status</th><th>Primary Issue</th></tr>
+      <tr><td>Page Opens Reliably</td><td>86</td><td>Healthy</td><td>No single dominant driver stood out.</td></tr><tr><td>Content Stays Stable</td><td>48</td><td>Needs Attention</td><td>forced reflow suggests unstable layout work</td></tr><tr><td>Scrolling Feels Smooth</td><td>18</td><td>Blocked</td><td>6 inferred long tasks</td></tr><tr><td>Page Feels Responsive</td><td>62</td><td>Needs Attention</td><td>short-window mutation churn reached 276</td></tr><tr><td>Session Stays Stable</td><td>76</td><td>Watch</td><td>DOM kept growing by 712 nodes during scroll</td></tr>
+    </table></div>
+    <details open>
+    <summary class="accordion-summary">Expand User Journey Perspective</summary>
+    <div class="accordion-body"><div class="lens-grid">
+        <div class="lens-card">
+              <div class="lens-meta">
+                <div><strong>Page Opens Reliably</strong><div class="status-healthy">Healthy</div></div>
+                <div class="lens-score">86</div>
+              </div>
+              <p>The signal for getting to readable content looks healthy in this run. No single dominant driver stood out more than the combined evidence.</p>
+              <details>
+    <summary class="accordion-summary">Expand Page Opens Reliably</summary>
+    <div class="accordion-body"><p class="small"><strong>Why it matters:</strong> This reflects whether a reader can reach usable content without the page feeling broken, delayed, or incomplete.</p>
+                <p class="small"><strong>Top drivers:</strong> No single dominant driver stood out.</p>
+                <div class="table-wrap"><table>
+                  <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+                  <tr><td>Navigation</td><td>success</td><td>Navigation completed successfully.</td></tr><tr><td>Failed requests</td><td>0</td><td>No obvious burst of broken requests was captured.</td></tr><tr><td>Console errors</td><td>1</td><td>Some runtime noise may be affecting startup reliability.</td></tr><tr><td>Lighthouse timing</td><td>10759.099999999999</td><td>Timing suggests a somewhat heavy open path.</td></tr><tr><td>Trace coverage</td><td>Captured</td><td>Load-phase trace evidence was available.</td></tr>
+                </table></div></div>
+  </details>
+            </div><div class="lens-card">
+              <div class="lens-meta">
+                <div><strong>Content Stays Stable</strong><div class="status-needs-attention">Needs Attention</div></div>
+                <div class="lens-score">48</div>
+              </div>
+              <p>The signal for content staying visually stable shows meaningful user-experience risk. The clearest drivers were forced reflow suggests unstable layout work and 19 eager below-the-fold images.</p>
+              <details>
+    <summary class="accordion-summary">Expand Content Stays Stable</summary>
+    <div class="accordion-body"><p class="small"><strong>Why it matters:</strong> This reflects whether the content settles into place instead of shifting, jumping, or continuing to rearrange itself while the reader tries to follow it.</p>
+                <p class="small"><strong>Top drivers:</strong> forced reflow suggests unstable layout work, 19 eager below-the-fold images</p>
+                <div class="table-wrap"><table>
+                  <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+                  <tr><td>Scroll CLS</td><td>0.12</td><td>Some shifting was present during reading or scroll.</td></tr><tr><td>Live DOM</td><td>755</td><td>DOM size did not stand out as a stabilization risk.</td></tr><tr><td>Forced reflow</td><td>Present</td><td>The trace flagged layout-thrashing behavior.</td></tr><tr><td>Eager images</td><td>19</td><td>Several below-fold images appear to load eagerly.</td></tr><tr><td>Eager iframes</td><td>0</td><td>Below-fold iframe loading did not stand out.</td></tr><tr><td>Missing lazy hints</td><td>29</td><td>This counts media and embeds missing an explicit loading hint where one was observable.</td></tr>
+                </table></div></div>
+  </details>
+            </div><div class="lens-card">
+              <div class="lens-meta">
+                <div><strong>Scrolling Feels Smooth</strong><div class="status-blocked">Blocked</div></div>
+                <div class="lens-score">18</div>
+              </div>
+              <p>The signal for scrolling and reading staying smooth looks severe enough to plausibly affect real users. The clearest drivers were 6 inferred long tasks and DOM growth reached 712 during scroll.</p>
+              <details>
+    <summary class="accordion-summary">Expand Scrolling Feels Smooth</summary>
+    <div class="accordion-body"><p class="small"><strong>Why it matters:</strong> This reflects whether reading and scrolling feel fluid instead of sticky, jittery, or heavier as more modules load.</p>
+                <p class="small"><strong>Top drivers:</strong> 6 inferred long tasks, DOM growth reached 712 during scroll, third-party trace cost was flagged</p>
+                <div class="table-wrap"><table>
+                  <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+                  <tr><td>Long tasks</td><td>6</td><td>Main-thread blocking likely affected scroll smoothness.</td></tr><tr><td>Render churn</td><td>276 mutations, 103 nodes, 1 long frames</td><td>Some churn was present during a short observation window.</td></tr><tr><td>DOM growth</td><td>712</td><td>DOM growth during scroll was high enough to keep adding work.</td></tr><tr><td>Max DOM</td><td>927</td><td>Maximum DOM size did not dominate this lens.</td></tr><tr><td>Third-party cost</td><td>Present</td><td>Third-party work showed up in the trace.</td></tr><tr><td>Forced reflow</td><td>Present</td><td>Layout thrash likely contributed to heavier scrolling.</td></tr>
+                </table></div></div>
+  </details>
+            </div><div class="lens-card">
+              <div class="lens-meta">
+                <div><strong>Page Feels Responsive</strong><div class="status-needs-attention">Needs Attention</div></div>
+                <div class="lens-score">62</div>
+              </div>
+              <p>The signal for interactive modules feeling ready and settled shows meaningful user-experience risk. The clearest drivers were short-window mutation churn reached 276 and 6 inferred long tasks.</p>
+              <details>
+    <summary class="accordion-summary">Expand Page Feels Responsive</summary>
+    <div class="accordion-body"><p class="small"><strong>Why it matters:</strong> This reflects whether controls, widgets, and dynamic modules feel settled enough to use instead of lagging, breaking, or continuing to reshuffle themselves.</p>
+                <p class="small"><strong>Top drivers:</strong> short-window mutation churn reached 276, 6 inferred long tasks</p>
+                <div class="table-wrap"><table>
+                  <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+                  <tr><td>Evaluation</td><td>Available</td><td>Page evaluation succeeded, so basic client-side state was reachable.</td></tr><tr><td>Console errors</td><td>1</td><td>Some runtime noise may affect modules or embeds.</td></tr><tr><td>Render churn</td><td>276 mutations, 103 nodes, 1 long frames</td><td>This helps show whether components keep mutating after they look loaded.</td></tr><tr><td>Long tasks</td><td>6</td><td>This indicates whether main-thread pauses may make widgets feel sluggish.</td></tr><tr><td>Navigation health</td><td>success</td><td>Navigation completed successfully.</td></tr>
+                </table></div></div>
+  </details>
+            </div><div class="lens-card">
+              <div class="lens-meta">
+                <div><strong>Session Stays Stable</strong><div class="status-watch">Watch</div></div>
+                <div class="lens-score">76</div>
+              </div>
+              <p>The signal for longer sessions staying stable on memory-constrained devices looks mostly workable, but there are issues worth watching. The clearest drivers were DOM kept growing by 712 nodes during scroll.</p>
+              <details>
+    <summary class="accordion-summary">Expand Session Stays Stable</summary>
+    <div class="accordion-body"><p class="small"><strong>Why it matters:</strong> This reflects whether the tab is likely to remain stable over longer reading sessions instead of getting heavier, leaking state, or risking eviction on constrained devices.</p>
+                <p class="small"><strong>Top drivers:</strong> DOM kept growing by 712 nodes during scroll</p>
+                <div class="table-wrap"><table>
+                  <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+                  <tr><td>Peak scroll heap</td><td>135.1 MB</td><td>Heap usage stayed in a modest range for this sample.</td></tr><tr><td>Retained heap</td><td>59.7 MB</td><td>Retained heap was measurable without standing out as extreme.</td></tr><tr><td>Heap graph nodes</td><td>707535</td><td>Heap graph complexity did not dominate this lens.</td></tr><tr><td>Compiled code</td><td>9.0 MB</td><td>This helps show whether shipped JavaScript may be contributing to long-session memory cost.</td></tr><tr><td>DOM growth</td><td>712</td><td>DOM growth was high enough to keep increasing session cost.</td></tr><tr><td>Ad impact</td><td>4 (Moderate)</td><td>Ads were not the only memory driver in this sample.</td></tr>
+                </table></div></div>
+  </details>
+            </div>
+      </div></div>
+  </details>
+  </section>
+
+  <section class="card">
+    <h2>4. What Was Tested</h2>
+    <p class="section-summary">Chrome DevTools MCP with Chromium emulation (iphone_16_pro), mobile viewport 393x852, deviceScaleFactor 3, touch enabled, Safari iPhone UA emulation, CPU throttling 4x slowdown, network throttling none.</p>
+    <details>
+    <summary class="accordion-summary">Expand What Was Tested</summary>
+    <div class="accordion-body"><div class="table-wrap"><table>
+        <tr><th>URL</th><td>https://www.amazon.in/</td></tr>
+        <tr><th>Flow</th><td>Open the homepafe, wait for the first few modules to settle, then perform a short representative scroll through the products,  media.</td></tr>
+        <tr><th>Environment</th><td>Chrome DevTools MCP with Chromium emulation (iphone_16_pro)</td></tr>
+        <tr><th>Limitations</th><td>This is a desktop-Chrome-backed diagnostic workflow, not a guarantee of mobile device stability. A single lab-style run does not replace real-user monitoring or production analytics.</td></tr>
+      </table></div></div>
+  </details>
+  </section>
+
+  <section class="card">
+    <h2>5. Phase Results</h2>
+    <p class="section-summary">7 phase(s) passed, 0 were partial, and 0 failed. This gives a quick view of how complete and trustworthy the run was.</p>
+    <details>
+    <summary class="accordion-summary">Expand Phase Results</summary>
+    <div class="accordion-body"><div class="table-wrap"><table>
+        <tr><th>Phase</th><th>Status</th><th>Finding</th><th>Continued?</th></tr>
+        <tr><td>0. Setup and page availability</td><td>Passed</td><td>Navigation ended as success.</td><td>Yes</td></tr><tr><td>1. Non-technical smoke check</td><td>Passed</td><td>The page exposed enough client-side state for quick usability checks.</td><td>Yes</td></tr><tr><td>2. Console health</td><td>Passed</td><td>1 likely error-level console messages were captured.</td><td>Yes</td></tr><tr><td>3. Network health</td><td>Passed</td><td>0 failed or explicitly errored requests were detected.</td><td>Yes</td></tr><tr><td>4. Performance trace</td><td>Passed</td><td>Trace captured with 19 discovered insight types.</td><td>Yes</td></tr><tr><td>5. DOM, runtime growth, and rerender churn</td><td>Passed</td><td>Live DOM count reached 755. Scroll DOM growth was 712. Short-window rerender probe observed 276 DOM mutations across 103 changed nodes.</td><td>Yes</td></tr><tr><td>6. Memory snapshot</td><td>Passed</td><td>Heap graph node count was 707535.</td><td>Yes</td></tr>
+      </table></div></div>
+  </details>
+  </section>
+
+  <section class="card">
+    <h2>6. Key Metrics</h2>
+    <p class="section-summary">The clearest headline metrics in this run were 0 failed request(s), 755 live DOM nodes, 135.1 MB peak scroll heap, 0.12 scroll CLS, 8548.511 ms of directly attributed third-party main-thread time.</p>
+    <details>
+    <summary class="accordion-summary">Expand Key Metrics</summary>
+    <div class="accordion-body"><div class="metric-grid">
+        <div class="metric"><div class="small">Console errors</div><div class="value">1</div></div>
+        <div class="metric"><div class="small">Failed requests</div><div class="value">0</div></div>
+        <div class="metric"><div class="small">Long tasks</div><div class="value">6</div></div>
+        <div class="metric"><div class="small">DOM nodes</div><div class="value">755</div></div>
+        <div class="metric"><div class="small">DOM growth</div><div class="value">712</div></div>
+        <div class="metric"><div class="small">Iframes</div><div class="value">0</div></div>
+        <div class="metric"><div class="small">Images</div><div class="value">29</div></div>
+        <div class="metric"><div class="small">Eager images</div><div class="value">19</div></div>
+        <div class="metric"><div class="small">Eager iframes</div><div class="value">0</div></div>
+        <div class="metric"><div class="small">Ad warnings</div><div class="value">0</div></div>
+        <div class="metric"><div class="small">Ad request issues</div><div class="value">0</div></div>
+        <div class="metric"><div class="small">Ad impact score</div><div class="value">4</div></div>
+        <div class="metric"><div class="small">Peak scroll heap</div><div class="value">135.1 MB</div></div>
+        <div class="metric"><div class="small">Render churn</div><div class="value">276</div></div>
+        <div class="metric"><div class="small">3P main-thread time</div><div class="value">8548.511</div></div>
+      </div>
+      <div class="table-wrap"><table>
+        <tr><th>Metric</th><th>Value</th><th>Interpretation</th></tr>
+        <tr><td>Console errors</td><td>1</td><td>There is some console noise worth reviewing.</td></tr><tr><td>Failed requests</td><td>0</td><td>No obvious network failure burst was captured.</td></tr><tr><td>Long-task estimate</td><td>6</td><td>The interaction likely had noticeable main-thread blocking.</td></tr><tr><td>DOM nodes</td><td>755</td><td>DOM size is not an immediate headline risk from this sample.</td></tr><tr><td>DOM growth on scroll</td><td>712</td><td>The DOM kept growing during scroll, which can increase layout and memory cost as the session continues.</td></tr><tr><td>Iframes</td><td>0</td><td>Iframe count is present but not unusually high.</td></tr><tr><td>Images</td><td>29</td><td>Image count alone is not the strongest risk in this run.</td></tr><tr><td>Below-fold eager images</td><td>19</td><td>Several images below the first viewport appear to be eager, which is a strong lazy-loading follow-up candidate.</td></tr><tr><td>Below-fold eager iframes</td><td>0</td><td>No obvious cluster of below-the-fold eager iframes was detected.</td></tr><tr><td>Ad-tech UX pressure</td><td>Moderate</td><td>Ads and embeds appear to contribute some visible experience cost, especially around load or scroll.</td></tr><tr><td>Render churn</td><td>276 mutations, 103 nodes, 1 long frames</td><td>Some render churn was present, but it was not the clearest risk by itself.</td></tr><tr><td>Peak scroll heap</td><td>135.1 MB</td><td>Heap usage was measurable during scroll without immediately standing out as extreme.</td></tr><tr><td>Scroll CLS</td><td>0.12</td><td>Scroll-time layout shift was present but not the clearest headline issue.</td></tr><tr><td>Heap graph nodes</td><td>707535</td><td>Retained heap complexity is notable but not the primary headline in isolation.</td></tr>
+      </table></div></div>
+  </details>
+  </section>
+
+  <section class="card">
+    <h2>7. Third-Party CPU Impact</h2>
+    <p class="section-summary">m.media-amazon.com was the largest directly attributed third-party main-thread cost in this run at 5932.125 ms, with 11 long task(s).</p>
+    <details>
+    <summary class="accordion-summary">Expand Third-Party CPU Impact</summary>
+    <div class="accordion-body"><div class="metric-grid">
+            <div class="metric"><div class="small">Top vendor</div><div class="value">m.media-amazon.com</div></div>
+            <div class="metric"><div class="small">Attributed main-thread</div><div class="value">8548.511 ms</div></div>
+          </div>
+          <div class="table-wrap"><table>
+            <tr><th>Vendor</th><th>Main-Thread Time</th><th>Script Time</th><th>Long-Task Time</th><th>Long Tasks</th><th>Max Task</th><th>Confidence</th><th>Likely UX Effect</th></tr>
+            <tr><td>m.media-amazon.com</td><td>5932.125 ms</td><td>5932.091 ms</td><td>1581.238 ms</td><td>11</td><td>444.705 ms</td><td>Confirmed</td><td>Likely contributor to sticky scrolling or delayed interaction because it created long main-thread work.</td></tr><tr><td>CNE Video</td><td>1292.406 ms</td><td>1292.406 ms</td><td>478.337 ms</td><td>1</td><td>478.337 ms</td><td>Confirmed</td><td>Likely contributor to sticky scrolling or delayed interaction because it created long main-thread work.</td></tr><tr><td>Google Ads / GPT</td><td>847.295 ms</td><td>847.295 ms</td><td>734.462 ms</td><td>3</td><td>293.064 ms</td><td>Confirmed</td><td>Likely contributor to sticky scrolling or delayed interaction because it created long main-thread work.</td></tr><tr><td>Audience Manager</td><td>138.472 ms</td><td>138.472 ms</td><td>0 ms</td><td>0</td><td>11.582 ms</td><td>Confirmed</td><td>Meaningful CPU cost that can make the page feel heavier during load or scroll.</td></tr><tr><td>ajs-assets.ftstatic.com</td><td>133.352 ms</td><td>133.352 ms</td><td>126.422 ms</td><td>1</td><td>126.422 ms</td><td>Confirmed</td><td>Likely contributor to sticky scrolling or delayed interaction because it created long main-thread work.</td></tr><tr><td>cdn.doubleverify.com</td><td>107.574 ms</td><td>107.574 ms</td><td>0 ms</td><td>0</td><td>0.434 ms</td><td>Confirmed</td><td>Meaningful CPU cost that can make the page feel heavier during load or scroll.</td></tr><tr><td>vanityfair.com</td><td>30.781 ms</td><td>30.781 ms</td><td>0 ms</td><td>0</td><td>0.724 ms</td><td>Confirmed</td><td>Visible in the trace, but not the dominant CPU driver by itself.</td></tr><tr><td>js.ad-score.com</td><td>26.791 ms</td><td>26.791 ms</td><td>0 ms</td><td>0</td><td>1.066 ms</td><td>Confirmed</td><td>Visible in the trace, but not the dominant CPU driver by itself.</td></tr><tr><td>Parse.ly</td><td>10.733 ms</td><td>10.733 ms</td><td>0 ms</td><td>0</td><td>2.541 ms</td><td>Confirmed</td><td>Visible in the trace, but not the dominant CPU driver by itself.</td></tr><tr><td>bd1cec50-00d1-4ce9-9572-785857419a1e.edge.permutive.app</td><td>7.336 ms</td><td>7.336 ms</td><td>0 ms</td><td>0</td><td>0.599 ms</td><td>Confirmed</td><td>Visible in the trace, but not the dominant CPU driver by itself.</td></tr>
+          </table></div>
+          <p class="small">This is a conservative first-pass CPU attribution model based only on directly attributed renderer main-thread events with script URLs. It is directional, not perfect causal proof.</p></div>
+  </details>
+  </section>
+
+  <section class="card">
+    <h2>8. Memory and DOM Analysis</h2>
+    <p class="section-summary">Post-load experience is the main readout here: forced reflow, DOM growth of 712 nodes, scroll CLS 0.12, 135.1 MB peak heap.</p>
+    <div class="scan-grid">
+    <div class="signal-card critical">
+    <div class="label">Post-load layout</div>
+    <div class="value">Forced reflow</div>
+    <p class="summary">Layout work is being triggered after scripts touch the page.</p>
+  </div>
+    <div class="signal-card critical">
+    <div class="label">DOM growth</div>
+    <div class="value">712</div>
+    <p class="summary">Max observed DOM: 927 nodes.</p>
+  </div>
+    <div class="signal-card watch">
+    <div class="label">Scroll stability</div>
+    <div class="value">0.12</div>
+    <p class="summary">Higher CLS means content moved while the user was scrolling.</p>
+  </div>
+    <div class="signal-card watch">
+    <div class="label">Peak JS heap</div>
+    <div class="value">135.1 MB</div>
+    <p class="summary">A useful signal for memory pressure on mobile-class devices.</p>
+  </div>
+    <div class="signal-card critical">
+    <div class="label">3P CPU leader</div>
+    <div class="value">m.media-amazon.com</div>
+    <p class="summary">5932.125 ms directly attributed main-thread time.</p>
+  </div>
+    <div class="signal-card watch">
+    <div class="label">Render churn</div>
+    <div class="value">276</div>
+    <p class="summary">Changed nodes: 103.</p>
+  </div>
+  </div>
+    <details>
+    <summary class="accordion-summary">Expand Memory and DOM Analysis</summary>
+    <div class="accordion-body"><div class="detail-grid">
+    <div class="detail-panel">
+      <h3>Responsiveness</h3>
+      <p>Post-load experience is the main readout here: forced reflow, DOM growth of 712 nodes, scroll CLS 0.12, 135.1 MB peak heap.</p>
+      <p class="small">Forced reflow: yes. Third-party insight: yes.</p>
+    </div>
+    <div class="detail-panel">
+      <h3>DOM Footprint</h3>
+      <p>Live DOM count was 755. Maximum DOM seen during scroll was 927. The page added 712 DOM nodes across the sampled scroll flow. That level of DOM size or growth can increase style recalculation, layout work, and memory cost as the session continues.</p>
+    </div>
+    <div class="detail-panel">
+      <h3>Memory Pressure</h3>
+      <p>Peak live JS heap during scroll reached 135.1 MB. Heap snapshot total size was 59.7 MB. Heap graph size was 707535 nodes.</p>
+    </div>
+    <div class="detail-panel">
+      <h3>Scroll Growth</h3>
+      <p>DOM nodes changed from 215 to 927 over 8 sampled steps. Live heap sampling was partial, but peak JS heap reached 135.1 MB during scroll. Scroll-time CLS reached 0.12.</p>
+    </div>
+    <div class="detail-panel">
+      <h3>Lazy Loading</h3>
+      <p>19 below-the-fold images appeared eager. 0 below-the-fold iframes appeared eager. 29 images were missing an explicit loading hint. 0 iframes were missing an explicit loading hint. Those below-the-fold eager resources are strong candidates for lazy loading if they are not needed immediately.</p>
+    </div>
+    <div class="detail-panel">
+      <h3>Ads and Embeds</h3>
+      <p>The page exposed 0 iframe(s), which often reflects embed or ad-slot pressure on content pages. 0 below-the-fold iframe(s) appeared eager rather than deferred. Trace insights flagged third-party cost, which commonly translates into slower slot setup, extra main-thread work, and more unstable content loading. Forced reflow was also present, which makes ad slot insertion and resize behavior more likely to affect reading smoothness. Scroll-time layout shift reached 0.12, which raises the chance that ads or embeds are moving content while users read. Ads and embeds appear to be contributing some user-experience cost, but they are not the only likely driver.</p>
+      <p class="small">Ad impact score: 4 (Moderate). Ad-related console warnings: 0. Ad-tech request issues: 0. Iframes: 0 total, with 0 eager below the fold. Third-party insight present: yes. Forced reflow insight present: yes.</p>
+    </div>
+  </div></div>
+  </details>
+  </section>
+
+  <section class="card">
+    <h2>9. Evidence</h2>
+    <p class="section-summary">Chrome DevTools MCP trace capture and insight analysis (DOMSize, ThirdParties, ForcedReflow), heap snapshot summary/details, DOM/evaluation probes, rerender probe, scroll profile, network request listing, console message inspection, Lighthouse snapshot audit.</p>
+    <details>
+    <summary class="accordion-summary">Expand Evidence</summary>
+    <div class="accordion-body"><h3>Screenshots</h3>
+      <p class="small">No bitmap screenshots were captured by the shared audit engine for this run. Use the page snapshot and run logs as fallback evidence.</p>
+      <h3>Top Console Messages</h3>
+      <pre>1. Emulating viewport: {&quot;deviceScaleFactor&quot;:3,&quot;isMobile&quot;:true,&quot;hasTouch&quot;:true,&quot;isLandscape&quot;:false,&quot;width&quot;:393,&quot;height&quot;:852}
+Emulating user agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1
+Emulating CPU throttling: 4x slowdown
+ID: 10
+Message: issue&gt; No label associated with a form field
+
+A `&lt;label&gt;` isn&#39;t associated with a form field.
+
+To fix this issue, nest the `&lt;input&gt;` in the `&lt;label&gt;` or provide a `for` attribute on the `&lt;label&gt;` that matches a form field `id`.
+Learn more:
+[The label elements](https…
+
+2. Emulating viewport: {&quot;deviceScaleFactor&quot;:3,&quot;isMobile&quot;:true,&quot;hasTouch&quot;:true,&quot;isLandscape&quot;:false,&quot;width&quot;:393,&quot;height&quot;:852}
+Emulating user agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1
+Emulating CPU throttling: 4x slowdown
+ID: 11
+Message: issue&gt; A form field element should have an id or name attribute
+
+A form field element has neither an `id` nor a `name` attribute. This might prevent the browser from correctly autofilling the form.
+
+To fix this issue, add a unique `id` or `name` attribute to a form …
+
+3. Emulating viewport: {&quot;deviceScaleFactor&quot;:3,&quot;isMobile&quot;:true,&quot;hasTouch&quot;:true,&quot;isLandscape&quot;:false,&quot;width&quot;:393,&quot;height&quot;:852}
+Emulating user agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1
+Emulating CPU throttling: 4x slowdown
+ID: 12
+Message: issue&gt; Deprecated feature used
+
+The Shared Storage API is deprecated and will be removed in a future release.
+Learn more:
+[Check the feature status page for more details.](https://chromestatus.com/feature/5076349064708096)
+### Affected resources
+data={&quot;affectedFrame…
+
+4. Emulating viewport: {&quot;deviceScaleFactor&quot;:3,&quot;isMobile&quot;:true,&quot;hasTouch&quot;:true,&quot;isLandscape&quot;:false,&quot;width&quot;:393,&quot;height&quot;:852}
+Emulating user agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1
+Emulating CPU throttling: 4x slowdown
+ID: 13
+Message: debug&gt; Error during native obstruction fetch Error: mash:getobstructions:timeout
+### Arguments
+Arg #0: Error during native obstruction fetch
+Arg #1: Error: mash:getobstructions:timeout
+--- setTimeout -------------------------
+at  (pixelMapper.ts:91:38)
+at  (pixelMap…
+
+5. Emulating viewport: {&quot;deviceScaleFactor&quot;:3,&quot;isMobile&quot;:true,&quot;hasTouch&quot;:true,&quot;isLandscape&quot;:false,&quot;width&quot;:393,&quot;height&quot;:852}
+Emulating user agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1
+Emulating CPU throttling: 4x slowdown
+ID: 17
+Message: issue&gt; Page layout may be unexpected due to Quirks Mode
+
+One or more documents in this page is in Quirks Mode, which will render the affected document(s) with quirks incompatible with the current HTML and CSS specifications.
+
+Quirks Mode exists mostly due to histori…</pre>
+      <h3>Network Summary</h3>
+      <pre>Failed request estimate: 0
+Frequent domains: m.media-amazon.com (67), fls-eu.amazon.in (10), amazon.in (4), aes.eu-south.ono.axp.amazon-adsystem.com (4), unagi.amazon.in (2)
+
+Emulating viewport: {&quot;deviceScaleFactor&quot;:3,&quot;isMobile&quot;:true,&quot;hasTouch&quot;:true,&quot;isLandscape&quot;:false,&quot;width&quot;:393,&quot;height&quot;:852}
+Emulating user agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1
+Emulating CPU throttling: 4x slowdown
+## Network requests
+Showing 1-103 of 103 (Page 1 of 1).
+reqid=321 GET https://www.amazon.in/ [200]
+reqid=322 POST https://unagi.amazon.in/1/events/com.amazon.csm.csa.prod [pending]
+reqid=323 GET https://fls-eu.amazon.in/1/remote-weblab-triggers/1/OE/A21TJRUUN4KGV:521-9033379-3126223:ZAZY5Y4FJGDWMWX22175$s:wl-client-id%3DCSMTriger%2Cwl%3DASV_FS_INITIALIZE_VSE_CONTENT_L_882828%2FC%2Cwl%3DASV_FS_REACTIONS_610697%2FC%2Cwl%3DANP_AGGRESSIVE_PREWARMING_1230138%2FT1%2Cwl%3DASV_BRAND_UPDATE_1036468%2FC%2Cwl%3DAMAZON_LIVE_FLAGSHIP_G2G_LATENCY_REPORT_869538%2FT1%2Cwl%3DASV_ANP_PREW_AND_1028605%2FT2:1234 [pending]
+reqid=324 GET https://www.amazon.in/rd/uedata?rid=ZAZY5Y4FJGDWMWX22175&amp;sid=521-9033379-3126223&amp;rx=yDR7GRClaZ9zKi+gvZ2eEl4tI05rGAQVsDzVmwmEp9e8WfjDyG0Qi5jS4iXnDTHy [200]
+reqid=325 GET https://loadus.exelator.com/load/?p=204&amp;g=8889&amp;j=0 [pending]
+reqid=326 GET https://odr.mookie1.com/t/v2?tagid=V2_393725&amp;AMAZON_REGION_SPECIFIC_ENDPOINT=aax-eu.amazon-adsystem.com/s&amp;src.visitorID=8z9zHOOhSiyXRsE15ZLRgg [pending]
+reqid=327 GET https://m.media-amazon.com/images/I/21mTcdsdtAL._RC%7C51z4zCuj7VL.css_.css?AUIClients/AmazonUI#mobile [200]
+reqid=328 GET https://m.media-amazon.com/images/I/11i1DYEiaoL._RC%7C01GaLSH4siL.css,51fMLkDdAPL.css,31PB9QRnzoL.css,21P+RTdWkDL.css,01e1eMxIAQL.css,0168Xo81wHL.css,31VtExXv3+L.css,11F5ACe4x7L.css,01xgFoPPxUL.css,117EdbGaSuL.css,11FLKjqFRuL.css,01IdKcBuAdL.css,01hTMdPgumL.css,01wLsDqViEL.css,01eVBHHaY+L.css,21WrwlMHONL.css,01jkMCAjwTL.css,51uku6rqJZL.css,01HWrzt-WgL.css,012dON--upL.css,3103L-rGdyL.css,01rsZA1PN5L.css,01XXL3mUnDL.css,212pFGU72UL.css,11TJIgpJkHL.css,21Z-N1VMkDL.css,01xVZWT0v7L.css,21Qw4B-W3oL.css,317ZAmYhF8L.css,01i092IYHUL.css,01oaPOLX+-L.css,31Xidrwy+iL.css,01qCtwM+r7L.css,11aGFFEVKYL.css,216fk13NCyL.css,11pcYOFpaDL.css,11ddP9TgqIL.css,012AAxUFVLL.css,21wNb8yRp+L.css,21BV5fnO7DL.css,11rQcpDZUeL.css,21ndCL-LT7L.css,11Bxyo5uU-L.css,21x35f-9xIL.css,11df7YrgiKL.css,01890+Vwk8L.css,21nC4lb4-2L.css,11txQ3I54VL.css,01qiwJ7qDfL.css,21HoRJ2tacL.css,016mfgi+D2L.css,01YtoGGCCuL.css,31qEvho-gRL.css,11RUQUwVPJL.css,21CPPF48ThL.css,01++tYIiyML.css,01nOZ8FJ+WL.css_.css?AUIClients/AmazonUI#mobile.not-trident [200]
+reqid=329…</pre>
+      <h3>Performance Trace Summary</h3>
+      <pre>## Summary of Performance trace findings:
+URL: https://www.amazon.in/
+Trace bounds: {min: 15863805062µs, max: 15891265846µs}
+CPU throttling: 4x
+Network throttling: none
+
+# Available insight sets
+
+The following is a list of insight sets. An insight set covers a specific part of the trace, split by navigations. The insights within each insight set are specific to that part of the trace. Be sure to consider the insight set id and bounds when calling functions. If no specific insight set or navigation is mentioned, assume the user is referring to the first one.
+
+## insight set id: NO_NAVIGATION
+
+URL: https://www.amazon.in/
+Bounds: {min: 15863805062µs, max: 15891265846µs}
+Metrics (lab / observed):
+  - INP: 110 ms, event: (eventKey: s-764734, ts: 15863915413)
+  - CLS: 0.00
+Metrics (field / real users): n/a – no data for this page in CrUX
+Available insights:
+  - insight name: INPBreakdown
+    description: Start investigating [how to improve INP](https://developer.chrome.com/docs/performance/insights/inp-breakdown) by looking at the longest subpart.
+    relevant trace bounds: {min: 15863915413µs, max: 15864025541µs}
+    example question: Suggest fixes for my longest interaction
+    example question: Why is a large INP score problematic?
+    example question: What&#39;s the biggest contributor to my longest interaction?
+  - insight name: ImageDelivery
+    description: Reducing the download time of images can improve the perceived load time of the page and LCP. [Learn more about optimizing image size](https://developer.chrome.com/docs/performance/insights/image-delivery)
+    relevant trace bounds: {min: 15868452280µs, max: 15868564152µs}
+    estimated wasted bytes: 521.3 kB
+    example question: What should I do to improve and optimize the time taken to fetch and display images on the page?
+    example question: Are all images on my site optimized?
+  - insight name: DOMSize
+    description: A large DOM can increase the duration of style calculations and layout reflows, impacting page responsiveness. A large DOM will also increase memory usage. [Learn how to avoid an excessive DOM size](https://developer.chrome.com/docs/performance/insights/dom-size).
+    relevant trace bounds: {min: 15864078334µs, max: 15890902980µs}
+    example question: How can I reduce the size of my DOM?
+  - insight name: ThirdParties
+    description: 3rd party code can significantly impact load performance. [Reduce and defer loading of 3rd party code](https://developer.chrome.com/docs/performance/…
+
+Insight: DOMSize
+Emulating viewport: {&quot;deviceScaleFactor&quot;:3,&quot;isMobile&quot;:true,&quot;hasTouch&quot;:true,&quot;isLandscape&quot;:false,&quot;width&quot;:393,&quot;height&quot;:852}
+Emulating user agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1
+Emulating CPU throttling: 4x slowdown
+## Insight Title: Optimize DOM size
+
+## Insight Summary:
+This insight evaluates some key metrics about the Document Object Model (DOM) and identifies excess in the DOM tree, for example:
+- The maximum number of elements within the DOM.
+- The maximum number of children for any given element.
+- Excessive depth of the DOM structure.
+- The largest layout and style recalculation events.
+
+## Detailed analysis:
+A large DOM can increase the duration of style calculations and layout reflows, impacting page responsiveness. A large DOM will also increase memory usage. [Learn how to avoid an excessive DOM size](https://developer.chrome.com/docs/performance/insights/dom-size).
+
+Statistic:
+
+Total elements: 3706.
+DOM depth: 26 nodes, starting with element &#39;path id=&#39;Path&#39;&#39; (node id: 12673).
+Most children: 42, for parent &#39;DIV class=&#39;scroll-carousel_slider__2xxdX scroll-carousel_scroll__…
+
+Insight: ThirdParties
+Emulating viewport: {&quot;deviceScaleFactor&quot;:3,&quot;isMobile&quot;:true,&quot;hasTouch&quot;:true,&quot;isLandscape&quot;:false,&quot;width&quot;:393,&quot;height&quot;:852}
+Emulating user agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1
+Emulating CPU throttling: 4x slowdown
+## Insight Title: 3rd parties
+
+## Insight Summary:
+This insight analyzes the performance impact of resources loaded from third-party servers and aggregates the performance cost, in terms of download transfer sizes and total amount of time that third party scripts spent executing on the main thread.
+
+## Detailed analysis:
+The following list contains the largest transfer sizes by a 3rd party script:
+
+- media-amazon.com: 5.8 MB
+- Marketplace Web Service: 131.8 kB
+- Amazon Web Services: 24.1 kB
+- Amazon Ads: 112 B
+- cloudfront.net: 2 B
+
+The following list contains the largest amount spent by a 3rd party script on the main thread:
+
+- media-amazon.com: 2,257 ms
+- Marketplace Web Service: 2 ms
+- cloudfront.net: 0 ms
+
+3rd party code can significantly impact load performance. [Reduce and defer loading of 3rd party code](https://developer.chrome.com/docs/performance/insights/thir…
+
+Insight: ForcedReflow
+Emulating viewport: {&quot;deviceScaleFactor&quot;:3,&quot;isMobile&quot;:true,&quot;hasTouch&quot;:true,&quot;isLandscape&quot;:false,&quot;width&quot;:393,&quot;height&quot;:852}
+Emulating user agent: Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1
+Emulating CPU throttling: 4x slowdown
+## Insight Title: Forced reflow
+
+## Insight Summary:
+This insight identifies forced synchronous layouts (also known as forced reflows) and layout thrashing caused by JavaScript accessing layout properties at suboptimal points in time.
+
+## Detailed analysis:
+A forced reflow occurs when JavaScript queries geometric properties (such as `offsetWidth`) after styles have been invalidated by a change to the DOM state. This can result in poor performance. Learn more about [forced reflows](https://developer.chrome.com/docs/performance/insights/forced-reflow) and possible mitigations.
+
+The forced reflow checks revealed one or more problems.
+
+The following is the top function call that caused forced reflow(s):
+
+ - (anonymous) @ https://m.media-amazon.com/images/I/11I0WXrZVoL._RC%7C11Y+5x+kkTL.js,51DFoGfFeXL.js,115zbyk371L.js,11GgN1+C7hL.js,313nCSj5srL.js,01VRMV3FBdL.js,21NadQlXUWL…</pre></div>
+  </details>
+  </section>
+
+  <section class="card">
+    <h2>10. Recommendations</h2>
+    <p class="section-summary">Reduce above-the-fold homepage module count on mobile. Prioritize core shopping/search/navigation modules first and defer secondary promo rails, icon grids, video player, and lower-priority merchandising cards until after first interaction or deeper scroll.</p>
+    <details open>
+    <summary class="accordion-summary">Expand Recommendations</summary>
+    <div class="accordion-body"><h3>Decision-Mapped Actions</h3>
+      <ul>
+        <li><strong>P1 / Frontend Platform:</strong> Reduce DOM churn, rerender-heavy components, and third-party main-thread work before tuning smaller cosmetic issues.</li><li><strong>P1 / Vendor/Partner:</strong> Profile and defer m.media-amazon.com first. It was the largest directly attributed third-party main-thread cost in this trace and is the clearest CPU-specific optimization target in this run.</li><li><strong>P2 / Frontend Platform:</strong> Reduce layout instability first by reserving slot space, deferring below-the-fold embeds, and removing forced-reflow paths that move content after it appears.</li><li><strong>P2 / Ads/Monetization:</strong> Audit slot timing, refresh behavior, below-the-fold embed loading, and vendor bloat as a monetization-experience tradeoff, not just a page bug.</li>
+      </ul>
+      <h3>Recommended Actions</h3>
+      <ol>
+        <li>Reduce above-the-fold homepage module count on mobile. Prioritize core shopping/search/navigation modules first and defer secondary promo rails, icon grids, video player, and lower-priority merchandising cards until after first interaction or deeper scroll.</li><li>Fix forced reflow hotspots in AmazonUI/AmazonUIjQuery/NavMobileAssets/homepage inline code. Remove read-after-write patterns around offset/hidden/onScreen checks, batch DOM reads before writes, and replace synchronous visibility/layout polling with IntersectionObserver where possible.</li><li>Audit the homepage carousel and promotional card system that is driving large style recalculations. Flatten nested wrappers, cap child counts, and virtualize or server-trim offscreen items instead of rendering all card chrome early.</li><li>Apply explicit lazy-loading and fetch priority tuning to homepage images. The evaluation found 29/29 images missing loading attributes and 19 eager images below the fold; set loading=&quot;lazy&quot; for below-the-fold images and reserve eager/high priority only for true hero/LCP media.</li><li>Stabilize late-loading module behavior around mash. Investigate the runtime warning &quot;Late loading module @m/mash&quot; and the repeated debug failure &quot;mash:getobstructions:timeout&quot; to prevent delayed module attachment and wasted retry work.</li><li>Address Quirks Mode in ad/auxiliary documents. The console indicates Quirks Mode in aax-eu.amazon-adsystem.com documents; ensure ad/embedded markup uses a standards-mode doctype to reduce layout inconsistencies and rendering unpredictability.</li><li>Reduce Amazon-hosted script payload on media-amazon.com. Break up AmazonUI/homepage bundles further for mobile homepage routes, and load only modules required for currently visible components.</li><li>Revisit homepage caching for repeat visits. The trace estimates 13.9 MB of cache-related waste; review cache headers/versioning for stable JS, CSS, fonts, icons, and media where safe.</li><li>Optimize image delivery on the homepage, especially promotional JPG/PNG assets and icon payloads, to recover the estimated 521.3 kB of image waste.</li><li>Follow up with a fresh mobile audit after fixes capturing LCP, INP, DOM-size after lazy load, scroll CLS, and per-step used JS heap so memory and interaction improvements can be verified.</li><li>Fix repeated console and runtime errors before drawing conclusions from later performance phases.</li><li>Reduce or defer the heaviest third-party scripts, especially ad-tech, embeds, and analytics that dominate transfer size or main-thread time.</li><li>Profile and defer m.media-amazon.com first, since it was the largest directly attributed third-party main-thread cost in this trace.</li><li>Investigate forced reflow and layout thrashing paths before pursuing smaller cosmetic optimizations.</li><li>Inspect DOM growth during interaction and lazy loading, especially if the page accumulates modules or embeds while scrolling.</li><li>Lazy-load below-the-fold images and embeds that do not need to start immediately on first view.</li><li>Review components, ads, and client-side widgets that keep mutating the DOM after initial load, especially if they update without visible user intent.</li><li>Prioritize layout stability improvements for lazy-loaded content, ad slots, fonts, and embed placeholders.</li>
+      </ol></div>
+  </details>
+  </section>
+
+  <section class="card">
+    <h2>11. Appendix</h2>
+    <p class="section-summary">AI synthesis: structured_summary via openai (gpt-5.4). This quick check is a repeatable browser-level diagnostic, not a replacement for real-user monitoring, WebPageTest, or device-specific mobile validation.</p>
+    <details>
+    <summary class="accordion-summary">Expand Appendix</summary>
+    <div class="accordion-body"><p>AI synthesis: structured_summary via openai (gpt-5.4). This quick check is a repeatable browser-level diagnostic, not a replacement for real-user monitoring, WebPageTest, or device-specific mobile validation.</p>
+      <h3>Engineering Action Plan</h3><ol><li>Refactor AmazonUI bundle code paths identified in forced reflow traces, especially the anonymous AmazonUI function at line 70:33 and onScreen logic in the aggregated AmazonUI bundle, to avoid geometry reads after DOM/style mutation.</li><li>Patch NavMobileAssets-all function g (120:443) to cache measurements per frame and stop repeated forced layout during nav/mobile homepage updates.</li><li>Replace AmazonUIjQuery offset/hidden calls in homepage flows with cached bounding boxes or IntersectionObserver-driven state updates; c.fn.offset, hidden filter checks, and related getters are expensive in the current trace.</li><li>Review CardJsRuntimeBuzzCopyBuild get() usage at 35:90 and remove synchronous measurement from card runtime paths.</li><li>Investigate and fix the inline amazon.in script hotspots at 1698:16085, 1698:26827, 1709:2048, 1626:241, and 1618:391 that contributed to forced layout.</li><li>Change below-the-fold homepage image markup to include loading=&quot;lazy&quot; and appropriate decoding/fetchpriority values; keep eager only on genuine hero images.</li><li>Gate video card initialization and mp4 fetches behind visibility/interaction so the video player does not start incurring asset and script cost during initial homepage load.</li><li>Resolve mash late-load timing: fix module ordering for @m/mash and obstruction fetch timeout handling so retries/debug logging do not extend startup work.</li><li>Review ad/measurement bootstrap on aax/aes/unagi/fls endpoints and delay non-critical reporting until after initial content is interactive, especially for mobile homepage entry.</li></ol>
+      <h3>MCP Prompt Used</h3>
+      <pre>Run a quick page performance check for https://www.amazon.in/ and produce a single self-contained HTML report.
+
+Use a phased, fail-soft approach:
+1. Open the page and confirm whether it loads.
+2. Collect console errors and warnings.
+3. Collect network request summary, failed requests, and top domains.
+4. Record a performance trace while loading and performing this flow: Open the homepafe, wait for the first few modules to settle, then perform a short representative scroll through the products,  media.
+5. Measure DOM size, iframe count, image count, and obvious runtime growth where available.
+6. Continue to the next phase if any individual phase fails, and mark that phase as Failed or Partial in the report.
+
+The report must start with a non-technical executive summary, then include what was tested, phase results, key metrics, evidence, recommendations, and appendix.</pre></div>
+  </details>
+  </section>
+  </main>
+</body>
+</html>

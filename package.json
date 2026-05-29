@@ -11,7 +11,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "audit": "tsx src/cli.ts",
+    "audit:chrome": "./scripts/run-attached-audit.sh audit",
     "quick-check": "tsx src/quick-check/cli.ts",
+    "quick-check:chrome": "./scripts/run-attached-audit.sh quick-check",
+    "quick-check:chrome:ai": "./scripts/run-attached-audit.sh quick-check --ai-mode structured_summary",
     "usability": "tsx src/usability/cli.ts",
     "api": "tsx src/api.ts",
     "mcp": "tsx src/mcp-server.ts"

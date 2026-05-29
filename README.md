@@ -155,6 +155,12 @@ CLI:
 npm run audit -- https://example.com
 ```
 
+CLI that auto-starts Chrome remote debugging if needed:
+
+```bash
+npm run audit:chrome -- https://example.com
+```
+
 Example `.env`:
 
 ```bash
@@ -206,6 +212,18 @@ Quick check report:
 
 ```bash
 npm run quick-check -- https://example.com --flow-description "Open the page, wait for content, then perform a short representative scroll."
+```
+
+Quick check that auto-starts Chrome remote debugging if needed:
+
+```bash
+npm run quick-check:chrome -- https://example.com --flow-description "Open the page, wait for content, then perform a short representative scroll."
+```
+
+Quick check with auto-started Chrome and AI summary:
+
+```bash
+npm run quick-check:chrome:ai -- https://example.com --flow-description "Open the page, wait for content, then perform a short representative scroll."
 ```
 
 Quick check with AI summary:
@@ -381,6 +399,12 @@ or pass it directly:
 
 ```bash
 npm run audit -- https://www.wired.com/ --browser-url http://127.0.0.1:9222
+```
+
+If you want the CLI to ensure that Chrome is available first, use:
+
+```bash
+npm run audit:chrome -- https://www.wired.com/
 ```
 
 You can verify the debugging endpoint yourself before running a compare:
